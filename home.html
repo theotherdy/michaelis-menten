@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html ng-app="michaelisMenten">
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />	<title>
+		Michaelis-Menten Enzyme Kinetics:
+	</title>
+	<link href="http://localhost/enzlab_win/pages/width=device-width, initial-scale=1.0" type="application/rss+xml" rel="alternate" title="viewport" />
+	<link rel="stylesheet" type="text/css" href="css/michaelismenten.css" />
+	<link rel="stylesheet" type="text/css" href="css/bootstrap.min.css" />
+	<link rel="stylesheet" type="text/css" href="css/bootstrap-theme.min.css" />
+	<link rel="stylesheet" type="text/css" href="css/jquery.jqplot.min.css" />
+	<link rel="stylesheet" type="text/css" href="css/ng-grid.min.css" />
+<script src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js" ></script><script src="//ajax.googleapis.com/ajax/libs/angularjs/1.2.7/angular.min.js"></script><script src="//ajax.googleapis.com/ajax/libs/angularjs/1.2.7/angular-cookies.js"></script><!--[if lt IE 9]><script language="javascript" type="text/javascript" src="excanvas.js"></script><![endif]-->
+	<script type="text/javascript" src="js/app.js"></script>
+	<script type="text/javascript" src="js/controllers.js"></script>
+	<script type="text/javascript" src="js/services.js"></script>
+	<script type="text/javascript" src="js/filters.js"></script>
+	<script type="text/javascript" src="js/bootstrap.min.js"></script>
+	<script type="text/javascript" src="js/jquery.jqplot.min.js"></script>
+	<script type="text/javascript" src="js/jqplot_plugins/jqplot.cursor.min.js"></script>
+	<script type="text/javascript" src="js/jqplot_plugins/jqplot.highlighter.min.js"></script>
+	<script type="text/javascript" src="js/ng-grid.min.js"></script>
+	<script type="text/javascript" src="js/ng-grid_plugins/ng-grid-layout.js"></script>
+	<script type="text/javascript" src="js/ng-grid_plugins/ng-grid-flexible-height.js"></script>
+	<script type="text/javascript" src="js/ng-grid_plugins/ng-grid-csv-export-injection-mod-for-ie.js"></script>
+	<script type="text/javascript" src="js/simple_statistics.js"></script>
+</head>
+<body ng-controller="VelocityCtrl" ng-init="setupNewExperiment();">
+	<div class="container">
+		<h1>Michaelis-Menten Enzyme Kinetics</h1>
+				<div class="row">
+	<div class="col-md-4">
+		<div id="control-panel" class="panel panel-default">
+			<div class="panel-heading"><strong>Control Panel</strong></div>
+			<div class="panel-body">
+				<div>
+					<form novalidate name="reactionForm" role="form" class="form-horizontal">
+						<div class="form-group">
+							<label class="col-sm-7 control-label">Enzyme vol. (&micro;l)</label> 
+							<div class="col-sm-5">
+								<input type="number" class="form-control"
+									name="E" ng-model="reactionParams.E" min="0" max="500" step="1"
+									ng-pattern="/^[-+]?[0-9]+(\.[0-9]+)?$/" required
+									placeholder="Volume of enzyme"> 
+								<span class="input-error"
+									ng-show="reactionForm.E.$dirty && reactionForm.E.$invalid">Must
+									be a number between 0 and 500</span>
+							</div>
+						</div>
+						<div class="form-group">
+							<label class="col-sm-7 control-label">[Substrate] (mM)</label> 
+							<div class="col-sm-5">
+								<input class="form-control"
+									type="number" name="S" ng-model="reactionParams.S" step="0.1"
+									ng-pattern="/^[-+]?[0-9]+(\.[0-9]+)?$/" required
+									placeholder="Concentration of substrate"> 
+								<span
+									class="input-error"
+									ng-show="reactionForm.S.$dirty && reactionForm.S.$invalid">Must
+									be a number</span>
+								</div>
+						</div>
+						<div class="form-group">
+							<label class="col-sm-7 control-label">[Inhibitor] (mM)</label> 
+							<div class="col-sm-5">
+								<input class="form-control"
+									type="number" name="I" ng-model="reactionParams.I" step="0.1"
+									ng-pattern="/^[-+]?[0-9]+(\.[0-9]+)?$/" required
+									placeholder="Concentration of inhibitor"> 
+								<span
+									class="input-error"
+									ng-show="reactionForm.I.$dirty && reactionForm.I.$invalid">Must
+									be a number</span>
+							</div>
+						</div>
+						<div class="form-group">
+							<label class="col-sm-7 control-label">pH</label> 
+							<div class="col-sm-5">
+								<input type="number" name="pH" class="form-control"
+									ng-model="reactionParams.pH" min="2" max="12" step="0.1"
+									ng-pattern="/^[-+]?[0-9]+(\.[0-9]+)?$/" required placeholder="pH">
+								<span class="input-error"
+									ng-show="reactionForm.pH.$dirty && reactionForm.pH.$invalid">Must
+									be a number between 2 and 12</span>
+							</div>
+						</div>
+					</form>
+				</div>
+				<div class="btn-toolbar pull-right" role="toolbar">
+					<div class="btn-group">
+						<button class="btn btn-default" ng-click="goHome()">Home</button>
+						<button class="btn btn-default" ng-click="goEat()" ng-disabled="experiment.partOfDay != 'lunch' && experiment.partOfDay != 'tea'">Eat</button>
+					</div>
+					<div class="btn-group">
+						<button class="btn btn-default" ng-click="setupApparatus()" ng-disabled="experiment.apparatusIsSetUp">Setup</button>
+						<button class="btn btn-default" ng-click="runReaction()" ng-disabled="reactionForm.$invalid || experiment.timeOfDay >= experiment.END_OF_DAY || experiment.partOfDay == 'lunch' || experiment.partOfDay == 'tea'|| !experiment.apparatusIsSetUp || experiment.workingVolume < reactionParams.E">Run</button>
+					</div>
+				</div>
+			</div>
+		</div>
+		<div id="about-panel" class="panel panel-default">
+			<div class="panel-heading"><strong>About your enzyme</strong></div>
+			<div class="panel-body">
+				<div class="row">
+					<div class="col-md-5">
+						<strong>Ref:</strong>
+					</div>
+					<div class="col-md-7">
+						{{enzymeParams.code[0]+'/'+enzymeParams.code[1]+enzymeParams.code[2]+'-'+enzymeParams.code[3]+enzymeParams.code[4]+enzymeParams.code[5]+enzymeParams.code[6]+'-'+enzymeParams.code[7]}}
+					</div>
+				</div>
+				<div class="row">
+					<div class="col-md-5">
+						<strong>Spec. activity:</strong>
+					</div>
+					<div class="col-md-7">
+						{{enzymeParams.sa | number:3}} <small>mmol min<sup>-1</sup>mg<sup>-1</sup></small>
+					</div>
+					
+				</div>
+				<div class="row">
+					<div class="col-md-7 col-md-offset-5">
+						<small><em>(Est: [S]=20mM; pH=7)</em></small>	
+					</div>
+				</div>
+				<div class="row">
+					<div class="col-md-5">
+						<strong>Enzyme conc:</strong>
+					</div>
+					<div class="col-md-7">
+						{{enzymeParams.conc | number:3}} <small>mg ml<sup>-1</sup></small>
+					</div>
+				</div>
+			</div>
+		</div>
+		<!-- >div id="help" class="panel panel-default">
+	    	<div class="panel-heading">
+	     		<h4 class="panel-title">
+	        		Help
+				</h4>
+	    	</div>
+	    	<div class="panel-body">
+				<div class="panel-group" id="accordion">
+				  	<div class="panel panel-default">
+				    	<div class="panel-heading">
+				     		<h4 class="panel-title">
+				        		<a data-toggle="collapse" data-parent="#accordion" href="#collapseOne">
+				          			Introduction
+				        		</a>
+				      		</h4>
+				    	</div>
+				    	<div id="collapseOne" class="panel-collapse collapse in">
+				      		<div class="panel-body">
+				        		<p>Simulate the behaviour of an enzyme over a range of substrate concentrations, at various pHs, and in the presence or absence of an inhibitor.</p>
+				        		<p>Each time this page is loaded, it will randomly generate a new enzyme, but don't worry, if you have already begun work on one enzyme, you will be given the chance to <strong>Continue</strong> your experiment or <strong>Restart</strong> with a new enzyme<sup>*</sup>.</p>
+				        		<p>The encoded <strong>Ref:</strong> given in <strong>About your enzyme</strong> contains a coded representation of your enzyme - please ensure you make a note of this.</p>
+				      			<p><sup>*</sup><small>Please note that this will only work if you are on the same machine and your browser has cookies enabled.</small></p>
+				      		</div>
+			    		</div>
+				  	</div>
+				  	<div class="panel panel-default">
+				    	<div class="panel-heading">
+				     		<h4 class="panel-title">
+				        		<a data-toggle="collapse" data-parent="#accordion" href="#collapseTwo">
+				          			Assumptions
+				        		</a>
+				      		</h4>
+				    	</div>
+				    	<div id="collapseTwo" class="panel-collapse collapse">
+				      		<div class="panel-body">
+								<p>In this simulation, the following assumptions are made about these characteristics:
+									<ol>
+										<li>The assay system you have developed is suitable for measuring rates between 0.2 and 10 &micro;mol min<sup>-1</sup>.</li>
+										<li>The specific activity of the enzyme was measured at pH 7.0 and a substrate concentration of 20 mM; it is an approximate value, and this may not be the pH optimum for the enzyme.</li>
+										<li>The enzyme is stable if kept frozen, but samples lose significant activity after being thawed for 24 hr.</li>
+										<li>You have discovered, by screening a library of small molecules, an inhibitor of the enzyme.</li>
+										<li>You have prepared and frozen six samples of 0.5 ml enzyme solution. At pH 7 and a substrate concentration of 20 mM each &micro;l of solution is sufficient to generate about 0.2 &micro;mol of product in 1 min. You have chosen to store it like this because you have calculated that 0.5 ml should be sufficient material for you to do a day's work.</li>
+				      				</ol>
+				      			</p>
+				      		</div>
+			    		</div>
+			    	</div>
+			    	<div class="panel panel-default">
+					    <div class="panel-heading">
+				      		<h4 class="panel-title">
+				        		<a data-toggle="collapse" data-parent="#accordion" href="#collapseThree">
+				         			Getting started
+				        		</a>
+				      		</h4>
+				    	</div>
+				    	<div id="collapseThree" class="panel-collapse collapse">
+				      		<div class="panel-body">
+				        		Anim pariatur cliche reprehenderit, enim eiusmod high life accusamus terry richardson ad squid. 3 wolf moon officia aute, non cupidatat skateboard dolor brunch. Food truck quinoa nesciunt laborum eiusmod. Brunch 3 wolf moon tempor, sunt aliqua put a bird on it squid single-origin coffee nulla assumenda shoreditch et. Nihil anim keffiyeh helvetica, craft beer labore wes anderson cred nesciunt sapiente ea proident. Ad vegan excepteur butcher vice lomo. Leggings occaecat craft beer farm-to-table, raw denim aesthetic synth nesciunt you probably haven't heard of them accusamus labore sustainable VHS.
+				      		</div>
+				    	</div>
+					</div>
+					<div class="panel panel-default">
+					    <div class="panel-heading">
+				      		<h4 class="panel-title">
+				        		<a data-toggle="collapse" data-parent="#accordion" href="#collapseThree">
+				         			Running a reaction
+				        		</a>
+				      		</h4>
+				    	</div>
+				    	<div id="collapseThree" class="panel-collapse collapse">
+				      		<div class="panel-body">
+				        		Anim pariatur cliche reprehenderit, enim eiusmod high life accusamus terry richardson ad squid. 3 wolf moon officia aute, non cupidatat skateboard dolor brunch. Food truck quinoa nesciunt laborum eiusmod. Brunch 3 wolf moon tempor, sunt aliqua put a bird on it squid single-origin coffee nulla assumenda shoreditch et. Nihil anim keffiyeh helvetica, craft beer labore wes anderson cred nesciunt sapiente ea proident. Ad vegan excepteur butcher vice lomo. Leggings occaecat craft beer farm-to-table, raw denim aesthetic synth nesciunt you probably haven't heard of them accusamus labore sustainable VHS.
+				      		</div>
+				    	</div>
+					</div>
+				  	<div class="panel panel-default">
+				  		<div class="panel-heading">
+				      		<h4 class="panel-title">
+				        		<a data-toggle="collapse" data-parent="#accordion" href="#collapseFour">
+				          			Analysing your results
+				        		</a>
+				      		</h4>
+				    	</div>
+				    	<div id="collapseFour" class="panel-collapse collapse">
+				      		<div class="panel-body">
+				        		Anim pariatur cliche reprehenderit, enim eiusmod high life accusamus terry richardson ad squid. 3 wolf moon officia aute, non cupidatat skateboard dolor brunch. Food truck quinoa nesciunt laborum eiusmod. Brunch 3 wolf moon tempor, sunt aliqua put a bird on it squid single-origin coffee nulla assumenda shoreditch et. Nihil anim keffiyeh helvetica, craft beer labore wes anderson cred nesciunt sapiente ea proident. Ad vegan excepteur butcher vice lomo. Leggings occaecat craft beer farm-to-table, raw denim aesthetic synth nesciunt you probably haven't heard of them accusamus labore sustainable VHS.
+				      		</div>
+			    		</div>
+				  	</div>
+				</div>
+			</div>
+		</div-->
+		<!-- div id="error-panel" class="panel panel-default">
+		<div class="panel-heading"><strong>Errors Panel (hidden)</strong></div>
+			<div class="panel-body">
+				<div>
+					<form novalidate name="errorsForm" role="form" class="form-horizontal">
+						<div class="form-group">
+							<label class="col-sm-7 control-label">Daytime &sigma;</label> 
+							<div class="col-sm-5">
+								<input type="number" class="form-control"
+									type="number" name="stdDaytime" ng-model="reactionParams.stdDaytime" step="0.01"
+									ng-pattern="/^[-+]?[0-9]+(\.[0-9]+)?$/" required
+									placeholder="Daytime std"> 
+							</div>
+						</div>
+						<div class="form-group">
+							<label class="col-sm-7 control-label">Evening &sigma;</label> 
+							<div class="col-sm-5">
+								<input class="form-control"
+									type="number" name="stdEvening" ng-model="reactionParams.stdEvening" step="0.01"
+									ng-pattern="/^[-+]?[0-9]+(\.[0-9]+)?$/" required
+									placeholder="Evening std"> 
+							</div>
+						</div>
+						<div class="form-group">
+							<label class="col-sm-7 control-label">Late Evening &sigma;</label> 
+							<div class="col-sm-5">
+								<input class="form-control"
+									type="number" name="stdLateEvening" ng-model="reactionParams.stdLateEvening" step="0.01"
+									ng-pattern="/^[-+]?[0-9]+(\.[0-9]+)?$/" required
+									placeholder="Late evening std"> 
+							</div>
+						</div>
+					</form>
+				</div>
+			</div>
+		</div-->
+		<!-- div id="enzyme-parameters-panel" class="panel panel-default">
+		  	<div class="panel-heading"><strong>Enzyme Parameters (hidden)</strong></div>
+		  	<div class="panel-body">
+				<form novalidate name="enzymeForm" role="form">
+					<div class="form-group">
+						<label>Type of enzyme:</label> <select
+							ng-model="enzymeParams.type">
+							<option value="DC">Decarboxylase</option>
+							<option value="DH">Dehydrogenase</option>
+							<option value="HY">Hydratase</option>
+							<option value="PH">Phosphatase</option>
+							<option value="PR">Protease</option>
+						</select>
+					</div>
+					<div class="form-group">
+						<label>Catalytic constant (&micro;mol/min):</label>
+						<input class="form-control"
+							type="number" name="k2" ng-model="enzymeParams.k2" step="0.01"
+							ng-pattern="/^[-+]?[0-9]+(\.[0-9]+)?$/" required
+							placeholder="Catalytic constant">
+						<span class="input-error"
+							ng-show="enzymeForm.k2.$dirty && enzymeForm.k2.$invalid">Must be
+							a number</span>
+					</div>
+					<div class="form-group">
+						<label>Michaelis constant (mM):</label> 
+						<input type="number" class="form-control"
+							name="Km" ng-model="enzymeParams.Km" step="0.01"
+							ng-pattern="/^[-+]?[0-9]+(\.[0-9]+)?$/" required
+							placeholder="Michaelis constant"> 
+						<span class="input-error"
+							ng-show="enzymeForm.Km.$dirty && enzymeForm.Km.$invalid">Must be
+							a number</span>
+					</div>
+					<div class="form-group">
+						<label>Acid dissociation contant pKa1k2 of a group which reduces
+							k2 when protonated - pKa1k2 = -log10(Ka1k2): 0 gives 'infinite'
+							Ka1k2 of 1 which removes this term from equation:</label> 
+						<input
+							class="form-control" type="number" name="pKa1k2" ng-model="enzymeParams.pKa1k2"
+							min="0" max="14" step="0.1"
+							ng-pattern="/^[-+]?[0-9]+(\.[0-9]+)?$/" required
+							placeholder="Acid dissociation contant pKa1k2"> 
+						<span
+							class="input-error"
+							ng-show="enzymeForm.pKa1k2.$dirty && enzymeForm.pKa1k2.$invalid">Must
+							be a number between 0 and 14</span>
+					</div>
+					<div class="form-group">
+						<label>Acid dissociation contant pKa2k2 of a group which reduces
+							k2 when deprotonated - pKa2k2 = -log10(Ka2k2): -1 indicates Ka2k2
+							should be 0 which removes this term from equation:</label> 
+						<input
+							class="form-control" type="number" name="pKa2k2" ng-model="enzymeParams.pKa2k2"
+							min="-1" max="14" step="0.1"
+							ng-pattern="/^[-+]?[0-9]+(\.[0-9]+)?$/" required
+							placeholder="Acid dissociation contant pKa2k2"> 
+						<span
+							class="input-error"
+							ng-show="enzymeForm.pKa2k2.$dirty && enzymeForm.pKa2k2.$invalid">Must
+							be a number between -1 and 14</span>
+					</div>
+					<div class="form-group">
+						<label>Acid dissociation contant pKa1Km of a group which increases
+							Km when protonated - pKa1Km = -log10 (Ka1Km): 0 gives 'infinite'
+							Ka1Km of 1 which removes this term from equation:</label> 
+						<input
+							class="form-control" type="number" name="pKa1Km" ng-model="enzymeParams.pKa1Km"
+							min="0" max="14" step="0.1"
+							ng-pattern="/^[-+]?[0-9]+(\.[0-9]+)?$/" required
+							placeholder="Acid dissociation contant pKa1Km"> 
+						<span
+							class="input-error"
+							ng-show="enzymeForm.pKa1Km.$dirty && enzymeForm.pKa1Km.$invalid">Must
+							be a number between 0 and 14</span>
+					</div>
+					<div class="form-group">
+						<label>Acid dissociation contant pKa2Km of a group which increases
+							Km when deprotonated - pKa2Km = -log10(Ka2Km): -1 indicates Ka2Km
+							should be 0 which removes this term from equation:</label> 
+						<input class="form-control"
+							type="number" name="pKa2Km" ng-model="enzymeParams.pKa2Km"
+							min="-1" max="14" step="0.1"
+							ng-pattern="/^[-+]?[0-9]+(\.[0-9]+)?$/" required
+							placeholder="Acid dissociation contant pKa2Km"> 
+						<span
+							class="input-error"
+							ng-show="enzymeForm.pKa2Km.$dirty && enzymeForm.pKa2Km.$invalid">Must
+							be a number between -1 and 14</span>
+					</div>
+					<div class="form-group">
+						<label>Competitive dissociation constant for the inhibitor (M):</label>
+						<input type="number" name="KdIEI" ng-model="enzymeParams.KdIEI"
+							min="0" max="1" step="0.01" class="form-control"
+							ng-pattern="/^[-+]?[0-9]+(\.[0-9]+)?$/" required
+							placeholder="Competitive dissociation constant for the inhibitor">
+						<span class="input-error"
+							ng-show="enzymeForm.KdIEI.$dirty && enzymeForm.KdIEI.$invalid">Must
+							be a number between 0 and 1</span>
+					</div>
+					<div class="form-group">
+						<label>Uncompetitive dissociation constant for the inhibitor (M):</label>
+						<input class="form-control" type="number" name="KdIESI" ng-model="enzymeParams.KdIESI"
+							min="0" max="1" step="0.01"
+							ng-pattern="/^[-+]?[0-9]+(\.[0-9]+)?$/" required
+							placeholder="Uncompetitive dissociation constant for the inhibitor">
+						<span class="input-error"
+							ng-show="enzymeForm.KdIESI.$dirty && enzymeForm.KdIESI.$invalid">Must
+							be a number between 0 and 1</span>
+					</div>
+				</form>
+			</div>
+		</div-->
+	</div>
+	<div class="col-md-8">
+		<div class="row">
+			<div id="status-panel" class="panel panel-default">
+			  	<div class="panel-heading">
+				  	<strong>Status</strong>
+				  	<div class="led-red" ng-show="reactionForm.$invalid || experiment.timeOfDay >= experiment.END_OF_DAY || experiment.partOfDay == 'lunch' || experiment.partOfDay == 'tea'|| !experiment.apparatusIsSetUp || experiment.workingVolume < reactionParams.E"></div>
+				  	<div class="led-green" ng-hide="reactionForm.$invalid || experiment.timeOfDay >= experiment.END_OF_DAY || experiment.partOfDay == 'lunch' || experiment.partOfDay == 'tea'|| !experiment.apparatusIsSetUp || experiment.workingVolume < reactionParams.E"></div>
+			  	</div>
+			  	<div class="panel-body">
+			  		<div class="alert alert-warning fade in" ng-show="usingStored">
+			        	<button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
+			        	<p><strong>Warning!</strong> You are working with an auto-saved enzyme and experiment. To begin a new experiment with a different enzyme, click 'Restart'. Note that you will not be able to return to this enzyme/experiment and results relating to this experiment will be deleted.<p>
+			        	<div class="text-right">
+			        		<button class="btn btn-default" title="Continue with the saved experiment" ng-click="continueWithSaved()">Continue</button>
+			        		<button class="btn btn-default" title="Start another experiment with a fresh enzyme" ng-click="reStart()">Restart</button>
+			        	</div>
+				  	</div>
+			  		<div class="col-md-4">
+						<h4>Samples:</h4>
+						<ul class="list-unstyled">
+							<li class="pull-left" ng-repeat="sample in experiment.samples">
+								<img class="sample-image" ng-click="defrostSample(sample.id);" ng-disable="sample.status==empty||experiment.timeOfDay >= experiment.END_OF_DAY" ng-src="img/beaker-{{sample.status}}-small.png">
+							</li>
+						</ul><br/><br/>
+					</div>
+					<div class="col-md-2">
+						<h4>Working vol:</h4><br/>{{experiment.workingVolume}} &micro;l
+					</div>
+					<div class="col-md-2">
+						<h4>Time: {{experiment.timeOfDay | timeFromDecimal}}</h4> 
+						<div ng-show="experiment.partOfDay == 'start'">Good morning</div>
+						<div ng-show="experiment.timeOfDay == (experiment.START_OF_DAY + experiment.SET_UP_APPARATUS)">Setting up took an hour</div>
+						<div ng-show="experiment.partOfDay == 'lunch' ">Lunchtime - take an hour to eat</div>
+						<div ng-show="experiment.partOfDay == 'tea'">Tea time - have a break or go home</div>
+						<div class="text-info" ng-show="experiment.partOfDay == 'evening'">Working late - getting tired</div>
+						<div class="text-warning" ng-show="experiment.partOfDay == 'late'">Working very late - struggling to concentrate</div>
+						<div class="text-danger" ng-show="experiment.timeOfDay >= experiment.END_OF_DAY">It's time to go home</div>
+					</div>
+					<div class="col-md-4">
+						<h4>Hints</h4>
+						<div ng-hide="!reactionForm.$invalid">Check your reaction params</div>
+						<div ng-hide="experiment.apparatusIsSetUp">You need to set up your apparatus - click the 'Setup apparatus' button</div>
+						<div ng-hide="experiment.workingVolume >= reactionParams.E">You have no defrosted enzyme - click a sample to defrost</div>
+						<div class="text-danger" ng-hide="error==''">{{error.message}}</div>
+					</div>	
+				</div>
+			</div>
+		</div>
+		<div class="row">
+			<div id="output-panel" class="panel panel-default hidden">
+			  	<div class="panel-heading"><strong>Output</strong></div>
+			  	<div class="panel-body">
+			    	<div class="hidden" id="chart-div"></div>
+			    	<div class="row">
+ 						<div id="alert-box" class="alert alert-success hidden col-md-6 col-md-offset-3"></div>
+					</div>
+			    	<div class="hidden" id="calculation-div">
+						<h5>Precision of initial rate measurements</h5>
+						<dl class="dl-horizontal">
+							<dt>No. of samples:</dt>
+								<dd>{{analysis.n}}</dd>
+							<dt>Mean:</dt>
+								<dd>{{analysis.mean}}</dd>
+							<dt>Standard deviation:</dt>
+								<dd>{{analysis.sd}}</dd>
+						</dl>
+					</div>
+					<div class="hidden" id="least-squares-div">
+						<form novalidate name="leastSquaresForm" role="form" class="form-horizontal">
+							<div class="form-group">
+								<label class="col-sm-4 control-label">Estimate of V<sub>max</sub></label> 
+								<div class="col-sm-4">
+									<input
+										class="form-control" type="number" name="vMaxEst" ng-model="analysis.vMaxEst"
+										placeholder="Estimate of Vmax"> 
+								</div>
+							</div>
+							<div class="form-group">
+								<label class="col-sm-4 control-label">Estimate of K<sub>m</sub></label> 
+								<div class="col-sm-4">
+									<input
+										class="form-control" type="number" name="kmEst" ng-model="analysis.kmEst"
+										placeholder="Estimate of Km"> 
+								</div>
+							</div>
+							<div class="form-group">
+								<label class="col-sm-4 control-label">Relaxation Factor</label>
+								<div class="col-sm-4">
+									<select class="form-control" ng-model="analysis.relaxationFactor" ng-options="f.value for f in analysis.relaxationFactors"></select>
+								</div>
+							</div>
+							<div class="well well-sm">
+								<strong>Correlation coefficient:</strong> {{analysis.corrCoeff | number:4}}; <strong>r<sup>2</sup>:</strong> {{analysis.r2 | number:4}}; <strong>RMS Error:</strong> {{analysis.RMS | number:4}}; <strong>d.f.:</strong>{{analysis.df | number}}
+							</div>
+							<button class="btn btn-default" ng-click="iterateKinetics()">Iterate</button>
+						</form>
+			  		</div>
+			  	</div>
+			</div>
+		</div>
+		<div class="row">
+			<div id="results-panel" class="panel panel-default">
+			  	<div class="panel-heading">
+			  		<strong>Results</strong>
+			  		<div class="btn-toolbar pull-right" role="toolbar">
+				  		<div class="btn-group btn-group-xs">
+					  		<button class="btn btn-default analysis-button" title="Select results with identical {E}, [S], [I] and pH" ng-click="calculatePrecision()" ng-disabled="!analysis.EsAreSame||!analysis.SsAreSame||!analysis.IsAreSame||!analysis.pHsAreSame">Precision</button>
+							<button class="btn btn-default analysis-button" title="Select results with identical {E}, [S], and [I] but varied pH" ng-click="calculatepHProfile()" ng-disabled="!analysis.EsAreSame||!analysis.SsAreSame||!analysis.IsAreSame||analysis.pHsAreSame">pH Profile</button>
+							<button class="btn btn-default analysis-button" title="Select results with identical {E}, [I] and pH but varied [S]" ng-click="calculateKinetics()" ng-disabled="!analysis.EsAreSame||analysis.SsAreSame||!analysis.IsAreSame||!analysis.pHsAreSame">Kinetics</button>
+				  		</div>
+				  		<div class="btn-group btn-group-xs">
+				  			<button class="btn btn-default" title="Select all" ng-click="toggleSelection(true)" ng-disabled="!experiment.runs.length>0">Select all</button>
+				  			<button class="btn btn-default" title="Deselect all" ng-click="toggleSelection(false)" ng-disabled="!dataToAnalyse.length>0">Deselect all</button>
+						</div>
+					</div>
+				</div>
+			  	<div class="panel-body">
+					<div class="gridStyle" ng-grid="gridOptions"></div>
+					<div class="tooltip-wrapper pull-right" data-title="Select results with identical {E}, [S], [I] and pH">
+			  			&nbsp;<button class="btn btn-default analysis-button" title="Select results with identical {E}, [I] and pH but varied [S]" ng-click="calculateKinetics()" ng-disabled="!analysis.EsAreSame||analysis.SsAreSame||!analysis.IsAreSame||!analysis.pHsAreSame">Kinetics</button>
+		  			</div>
+		  			<div class="tooltip-wrapper pull-right" data-title="Select results with identical {E}, [S], and [I] but varied pH">
+			  			&nbsp;<button class="btn btn-default analysis-button" title="Select results with identical {E}, [S], and [I] but varied pH" ng-click="calculatepHProfile()" ng-disabled="!analysis.EsAreSame||!analysis.SsAreSame||!analysis.IsAreSame||analysis.pHsAreSame">pH Profile</button>
+					</div>
+					<div class="tooltip-wrapper pull-right" data-title="Select results with identical {E}, [S], [I] and pH">
+			  			<button class="btn btn-default analysis-button" title="Select results with identical {E}, [S], [I] and pH" ng-click="calculatePrecision()" ng-disabled="!analysis.EsAreSame||!analysis.SsAreSame||!analysis.IsAreSame||!analysis.pHsAreSame">Precision</button>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+<div class="row">
+  	<div class="col-md-10">
+  		<p><small>Developed by Dr Damion Young (<a href="https://learntech.imsu.ox.ac.uk/blog/" target="_blank">Medical Sciences Division Learning Technologies</a>), Dr Mark Wormald (<a href="http://www.bioch.ox.ac.uk/aspsite/index.asp?pageid=607" target="_blank">Department of Biochemistry</a>) and Dr David Harris (<a href="http://www.bioch.ox.ac.uk/aspsite/index.asp?pageid=580" target="_blank">Department of Biochemistry</a>)</small></p>
+  		<p><small>Adapted from enzymeLAB v1.2 (Doug Clow, John Garratt and Anne Hodgson, University of York with funding from the <a href="http://www.naec.org.uk/organisations/the-teaching-and-learning-technology-programme">Teaching and Learning Technology Programme</a>).</small></p>
+  		<p><small>Nonlinear least squares curve fitting developed from original code with kind permission of John C. Pezzullo, PhD: <a href="http://www.statpages.info">StatPages.info</a></small></p>
+ 	</div>
+ 	<div class="col-md-2 text-right">
+  		<img src="img/oxford_logo.gif" alt="Oxford logo" width="115" height="115">
+ 	</div>
+</div>	</div>
+	</body>
+</html>
